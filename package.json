@@ -1,0 +1,67 @@
+{
+  "name": "krusch-grounded-harness",
+  "version": "0.2.0",
+  "type": "module",
+  "main": "src/index.js",
+  "description": "Turn-0 Grounded, Scale-Aware, Low-Tool-Call Agent Harness (HTTP :3782 + 7-tool Stdio MCP) built on @krusch/toolkit",
+  "author": "kruschdev <kruschdev@users.noreply.github.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kruschdev/grounded-harness.git"
+  },
+  "homepage": "https://github.com/kruschdev/grounded-harness#readme",
+  "bugs": {
+    "url": "https://github.com/kruschdev/grounded-harness/issues"
+  },
+  "bin": {
+    "krusch-grounded-harness": "./bin/krusch-grounded-harness.js"
+  },
+  "exports": {
+    ".": "./src/index.js",
+    "./scale-policy": "./src/scale-policy.js",
+    "./delta-tool-gate": "./src/delta-tool-gate.js",
+    "./grounding-compiler": "./src/grounding-compiler.js",
+    "./session-engine": "./src/grounded-session-engine.js",
+    "./mcp": "./src/mcp.js",
+    "./server": "./src/server.js"
+  },
+  "files": [
+    "bin",
+    "src",
+    "config.json",
+    "Dockerfile",
+    "docker-compose.yml",
+    ".env.example",
+    "AGENTS.md",
+    "spec.md",
+    "README.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "agent-harness",
+    "mcp",
+    "mcp-server",
+    "model-context-protocol",
+    "turn-zero-grounding",
+    "raw-rag",
+    "scale-aware",
+    "sqlite",
+    "coding-agents",
+    "krusch-stack"
+  ],
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "mcp": "node src/mcp.js",
+    "doctor": "node bin/krusch-grounded-harness.js doctor",
+    "bench": "node bin/krusch-grounded-harness.js bench",
+    "test": "node --test tests/*.test.js"
+  },
+  "dependencies": {
+    "@krusch/toolkit": "https://github.com/kruschdev/toolkit/archive/0c8c65032dd2218ed913f3bc0ab0f2f6e7c8ac57.tar.gz"
+  }
+}

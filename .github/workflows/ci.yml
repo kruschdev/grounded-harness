@@ -1,0 +1,22 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    name: Node.js 22 (krusch-grounded-harness v0.2.0 & Zero-Leak Gate)
+    runs-on: ubuntu-latest
+    env:
+      PUPPETEER_SKIP_DOWNLOAD: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install
+      - run: node --check src/server.js
+      - run: node bin/krusch-grounded-harness.js doctor --json > /dev/null
+      - run: npm test

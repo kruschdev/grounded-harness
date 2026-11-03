@@ -1,0 +1,13 @@
+node_modules
+client/node_modules
+.env
+.env.*
+!.env.example
+data
+logs
+*.log
+.git
+__pycache__
+*.pyc
+.venv
+.pytest_cache

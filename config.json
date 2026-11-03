@@ -1,0 +1,6 @@
+{
+  "port": 3782,
+  "serviceName": "krusch-grounded-harness",
+  "dbPath": "./data/app.db",
+  "logDir": "./logs"
+}

@@ -1,0 +1,17 @@
+# OS Drive Protection (INV-LEGO-04):
+# Never store persistent SQLite databases, Docker volumes, or model caches on OS root drives.
+# Point DATA_DIR to a dedicated non-OS storage volume in production.
+services:
+  app:
+    build:
+      context: .
+    container_name: krusch-grounded-harness
+    restart: unless-stopped
+    ports:
+      - "${PORT:-3782}:3782"
+    environment:
+      PORT: "3782"
+      DB_PATH: /app/data/app.db
+      LOG_DIR: /app/data/logs
+    volumes:
+      - ${DATA_DIR:-./data}:/app/data
