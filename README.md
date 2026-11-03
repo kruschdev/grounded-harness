@@ -6,11 +6,11 @@ Turn-0 Grounded, Scale-Aware, Low-Tool-Call Agent Harness (`HTTP :3782` Control 
 
 ## ⚡ Overview & Six Empirical Design Laws (`INV-GH-01..10`)
 
-Distilled from `11,400+` `DolphinBench` traces (`600`-task multi-session tool suite), `120` `DABstep` multi-step analytics episodes, `BEAM` (`100K`–`10M` tokens), and `BFCL v3` (`64` live tools), `krusch-grounded-harness` replaces unconditional outer-loop 2PC stop-nudging with six zero-overhead-when-healthy structural laws:
+Distilled from `13,200+` `DolphinBench` traces (`22` official `600`-task multi-session tool runs), `120` `DABstep` multi-step analytics episodes, `BEAM` (`100K`–`10M` tokens), and `BFCL v3` (`64` live tools), `krusch-grounded-harness` replaces unconditional outer-loop 2PC stop-nudging with six zero-overhead-when-healthy structural laws:
 
 1. **Turn-0 Schema + `Raw-RAG` Briefing with Dataset Hazard Flags (`INV-GH-01`, `INV-GH-02`)**
    - `compileTurnZeroGrounding` introspects RFC-4180 CSV/TSV columns, JSON/JSONL object arrays, read-only SQLite DDL & row counts, code symbols, and `256/32`-token `Raw-RAG` documentation chunks with **`0` LLM ingestion calls**, paired with Okapi BM25 tool deferral (`-70%` to `-80%` schema tokens) and SHA-256 `prefixHash` KV-cache normalization.
-   - Explicitly flags **CSV `"NA"` string literals** (`keep_default_na=False` in `pandas.read_csv`) and **JSON `null` vs. empty-list `[]` wildcards** before Step 1 ( skipping `.env` / secret files automatically).
+   - Explicitly flags **CSV `"NA"` string literals** (`keep_default_na=False` in `pandas.read_csv`) and **JSON `null` vs. empty-list `[]` wildcards** before Step 1 (skipping `.env` / secret files automatically).
 2. **Gemini Tool-Less `functionCallingConfig: { mode: "NONE" }` Guard (`INV-GH-09`)**
    - `buildSafeGeminiToolConfig` (and `buildGeminiPayload` in `@krusch/toolkit/llm`) automatically injects `toolConfig: { functionCallingConfig: { mode: 'NONE' } }` whenever `tools` is omitted or empty `[]`, eliminating `MALFORMED_FUNCTION_CALL` empty turns on markdown ```` ```py ```` code blocks.
 3. **Zero-Turn *Defect-Only* Output Gate (`inspectOutputDefects`, `INV-GH-05`)**
@@ -25,6 +25,23 @@ Distilled from `11,400+` `DolphinBench` traces (`600`-task multi-session tool su
    - `SMALL_MODEL` (`< 15B` non-thinking) receives compact `[PLAN -> BIND -> ACT]` guidance plus placeholder (`{{var}}`) and invalid-calendar-date soft-holds (`HOLD`); `MID_MODEL` (`15B–70B`) and `FRONTIER_REASONING` (`>= 70B` or native thinking) execute with `0` outer thinking overhead. `FORCE_VERIFY` fires **strictly when `pendingDiffsCount > 0 && !latestVerificationPassed`**, never on read-only analytics or policy abstentions.
 6. **Partial `stdout` Preservation on Sandbox Timeouts (`INV-GH-10`)**
    - `execCommandWithPartialStdout` and `formatTimeoutWithPartialStdout` preserve partial `stdout` emitted prior to timeout alongside `TimeoutError` while clearing stale `finalAnswer: null` (`hasFinalAnswer: false`).
+
+---
+
+## 📊 Empirical Benchmark Results (`1,800` Official `DolphinBench` Traces & `120` Adyen `DABstep` Episodes)
+
+### 1. Official `DolphinBench` Multi-App Suite (`3 × 600 = 1,800` Traces, `openai/gpt-5.6-sol` Judge, `0o444` Frozen SQLite, `5/5` Clean-Room Gates)
+
+| Model & Scale Tier (`N = 600` Tasks/Run) | Standard Harness | `+ Grounded Harness` (`v0.2.0`) | Key Latency, Persona & Telemetry Outcomes | Archive SHA-256 |
+|---|---|---|---|---|
+| **`Google Gemma 4 31B Dense` (`MID_MODEL`, Thinking ON, `$0.00`)** | `54.17%` (`325/600`) | **`56.67%` (`340/600`, NEW `#1 Open-Weights`)** | **`+2.50 pp` (`+15` net tasks)** · Lifts every persona (`Morgan 73.0%`, `Alex 48.5%`, **`Riley 48.5%` [`+5.50 pp`]**) · **`15` spin loops blocked**, `4` policy-floor blocks, `1` output defect healed, `1,228` Turn-0 duplicates suppressed (`Oracle@2 = 61.33%` [`368/600`], `Oracle@3 = 66.17%` [`397/600`]) | `eab600888c276d58490135544e1ecd4ed2c68b63a4504baf1556437f9e62f296` |
+| **`OpenAI GPT 5.6 Luna` (`FRONTIER_REASONING`, High, `$1.35`)** | `81.33%` (`488/600`) | **`81.50%` (`489/600`, `#1` Luna Pareto)** | **`30.03s` median latency (`1.57x` faster than `47.02s` Standard)** · **`+4.50 pp` on `Riley` (`149 -> 158`)** over unconditional 2PC stop-nudging · `5,318` Turn-0 duplicates suppressed, `0` self-doubt nudges (`Oracle@2 = 89.33%` [`536/600`]) | `477047fc4852137f3432eaf9a82aa40c659ba2ae4a6269d28ea2b419df17e408` |
+| **`Google Gemini 4 Argon` (`FRONTIER_REASONING`, Low, `$23.92`)** | `91.17%` (`547/600`) | **`89.17%` (`535/600`)** | `-2.5%` lower cost (`$23.92` vs. `$24.54`, exact McNemar $p = 0.104$ NS) · **`+17` new tail-recall wins (`Argon Low Oracle@2 = 94.00%` [`564/600`])** · `8,092` Turn-0 duplicates suppressed, `0` self-doubt nudges | `5ce8a7f8ac513d706e874f58014fee1e5e7b18bbd520df8a0d7445c1565a798d` |
+
+### 2. Adyen `DABstep` Multi-Step Data Analytics (`120` Episodes Across `4` Models, `0` LLM Judges, `42/42` Upstream `scorer.py` Parity)
+
+- **`gemini-4-argon` (`medium`)**: Reaches **`90.0%` (`9/10`: `100%` Easy, `85.7%` Hard) @ `$0.81`** (`5.1` turns) and delivers **`-74.5%` lower cost with a `2.54x` wall-clock speedup** (`75.5s` vs. `191.5s` ungrounded) by flagging CSV `"NA"` string literals (`keep_default_na=False`) and JSON `null`/`[]` wildcards at Turn 0.
+- **Open-Weights (`$0.00` Inference)**: Lifts **`gemma4:31b` from `20.0%` $\rightarrow$ `40.0%` (`+20.0 pp`)** and **`qwen3-coder-30b-moe` from `20.0%` $\rightarrow$ `30.0%` (`+10.0 pp`, `6.8 -> 2.4` steps, `-44.4%` prompt tokens)** with `0` LLM ingestion calls.
 
 ---
 
