@@ -277,6 +277,12 @@ export function createDeltaContextTracker({ initialChunkIds = [], initialFileDig
     return stored;
   }
 
+  function clearReadMemo() {
+    const cleared = readMemo.size;
+    readMemo.clear();
+    return cleared;
+  }
+
   function getMetrics() {
     return {
       turn0SeededChunks: turn0SeededCount,
@@ -295,6 +301,7 @@ export function createDeltaContextTracker({ initialChunkIds = [], initialFileDig
     recordFileDigest,
     checkReadMemo,
     recordReadMemo,
+    clearReadMemo,
     getMetrics
   };
 }

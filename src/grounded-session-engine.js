@@ -1994,13 +1994,29 @@ export function createGroundedSessionEngine({
       }
     }
 
-    // Check 3: Duplicate Mutating Write Guard
+    // Find latest workspace mutation rowid (if any) to scope read/spin/duplicate-write checks
+    const lastMutationRow = db.queryOne(
+      `SELECT MAX(rowid) AS max_rowid, call_signature
+       FROM grounded_events
+       WHERE session_id = ? AND is_mutating = 1 AND status = 'COMMITTED'`,
+      [sessionId]
+    );
+    const lastMutationRowId = Number(lastMutationRow?.max_rowid ?? 0);
+
+    // Check 3: Duplicate Mutating Write Guard (consecutive identical mutations without an intervening different mutation)
     if (isMutating) {
+      const lastDiffMutationRow = db.queryOne(
+        `SELECT MAX(rowid) AS max_rowid
+         FROM grounded_events
+         WHERE session_id = ? AND is_mutating = 1 AND status = 'COMMITTED' AND call_signature != ?`,
+        [sessionId, callSignature]
+      );
+      const afterRowId = Number(lastDiffMutationRow?.max_rowid ?? 0);
       const countRow = db.queryOne(
         `SELECT COUNT(*) AS cnt
          FROM grounded_events
-         WHERE session_id = ? AND call_signature = ? AND status = 'COMMITTED'`,
-        [sessionId, callSignature]
+         WHERE session_id = ? AND call_signature = ? AND status = 'COMMITTED' AND rowid > ?`,
+        [sessionId, callSignature, afterRowId]
       );
       const committedCount = Number(countRow?.cnt ?? 0);
       const maxDupWrites = Number(sessionRow.max_duplicate_writes ?? 1);
@@ -2038,22 +2054,22 @@ export function createGroundedSessionEngine({
       }
     }
 
-    // Check 3.5: Passive Spin-Loop Guard on repeated FAILED or already-MEMOIZED calls (`INV-GH-04`)
+    // Check 3.5: Passive Spin-Loop Guard on repeated FAILED or already-MEMOIZED calls since last mutation (`INV-GH-04`)
     if (spinLoopEnabled && !explicitBlockSpinLoop) {
       const priorSpinRow = db.queryOne(
         `SELECT status, result_preview
          FROM grounded_events
-         WHERE session_id = ? AND call_signature = ? AND status IN ('FAILED', 'MEMOIZED')
+         WHERE session_id = ? AND call_signature = ? AND status IN ('FAILED', 'MEMOIZED') AND rowid > ?
          ORDER BY updated_at_ms DESC, rowid DESC
          LIMIT 1`,
-        [sessionId, callSignature]
+        [sessionId, callSignature, lastMutationRowId]
       );
       if (priorSpinRow) {
         return respondWithSpinLoopBlock(priorSpinRow);
       }
     }
 
-    // Check 4: Read Memoization & Turn-0 Delta Short-Circuit (strictly maxReadStreak === 0)
+    // Check 4: Read Memoization & Turn-0 Delta Short-Circuit (strictly maxReadStreak === 0, scoped since last mutation)
     if (!isMutating) {
       const memo = tracker.checkReadMemo(callSignature);
       let memoHit = Boolean(memo?.hit);
@@ -2063,10 +2079,10 @@ export function createGroundedSessionEngine({
         const committedReadRow = db.queryOne(
           `SELECT result_preview, step
            FROM grounded_events
-           WHERE session_id = ? AND call_signature = ? AND is_mutating = 0 AND status = 'COMMITTED'
+           WHERE session_id = ? AND call_signature = ? AND is_mutating = 0 AND status = 'COMMITTED' AND rowid > ?
            ORDER BY updated_at_ms DESC, rowid DESC
            LIMIT 1`,
-          [sessionId, callSignature]
+          [sessionId, callSignature, lastMutationRowId]
         );
         if (committedReadRow) {
           memoHit = true;
@@ -2382,12 +2398,16 @@ export function createGroundedSessionEngine({
       );
     });
 
-    if (isOk && Number(eventRow.is_mutating) === 0) {
+    if (isOk) {
       const tracker = getOrHydrateTracker(sessionRow);
-      tracker.recordReadMemo(eventRow.call_signature, {
-        preview: truncatedPreview,
-        step: Number(eventRow.step || 0)
-      });
+      if (Number(eventRow.is_mutating) === 0) {
+        tracker.recordReadMemo(eventRow.call_signature, {
+          preview: truncatedPreview,
+          step: Number(eventRow.step || 0)
+        });
+      } else if (typeof tracker.clearReadMemo === 'function') {
+        tracker.clearReadMemo();
+      }
     }
 
     if (timedOut && formattedTimeout) {
