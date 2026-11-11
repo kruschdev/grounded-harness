@@ -9,13 +9,18 @@ import { setupLogging } from '@krusch/toolkit/log';
 import { config } from '../src/config.js';
 import {
   SCALE_TIERS,
+  DEFAULT_EVOLVED_HARNESS_RULES,
   buildSafeGeminiToolConfig,
   buildScaleAwareDirective,
   canonicalizeToolCallKey,
   compileTurnZeroGrounding,
   createGroundedHarness,
+  evaluateAuthorizationDrift,
+  evolveRulesFromTraces,
+  inspectAndRepairDartBoundaries,
   inspectOutputDefects,
-  resolveScaleProfile
+  resolveScaleProfile,
+  verifyCandidateRulesOnTraces
 } from '../src/index.js';
 import { startGroundedMcpServer, GROUNDED_MCP_TOOLS } from '../src/mcp.js';
 import { buildServer } from '../src/server.js';
@@ -238,6 +243,24 @@ export const cli = defineCli({
           const hashB = canonicalizeToolCallKey('run_py', { code: 'x = 7 // 2  # second comment\n\nprint(x)   ' });
           const cleanDefect = inspectOutputDefects({ candidateAnswer: 'Not Applicable', expectNonEmptyAnswer: true });
           const nanDefect = inspectOutputDefects({ candidateAnswer: 'NaN', expectNonEmptyAnswer: true });
+          const dartRepairProbe = inspectAndRepairDartBoundaries({
+            toolName: 'list_orders',
+            args: { dryRun: 'false', limit: '25' }
+          });
+          const dartHoldProbe = inspectAndRepairDartBoundaries({
+            toolName: 'delete_user',
+            args: { user_id: '--all --force' }
+          });
+          const driftHoldProbe = evaluateAuthorizationDrift({
+            toolName: 'query_sql',
+            args: { sql: 'SELECT * FROM customers' },
+            goal: 'Verify order #1042 shipping status'
+          });
+          const driftAllowProbe = evaluateAuthorizationDrift({
+            toolName: 'query_sql',
+            args: { sql: 'SELECT order_id, status FROM orders WHERE order_id = 1042 LIMIT 1' },
+            goal: 'Verify order #1042 shipping status'
+          });
 
           const checks = {
             sqliteWalMemory: mcpCheck.harness.db.isOpen(),
@@ -266,7 +289,17 @@ export const cli = defineCli({
               geminiGuard?.functionCallingConfig?.mode === 'NONE' &&
               buildSafeGeminiToolConfig({ tools: [{ name: 'q' }] }) === null,
             commentNormalizedSpinHash: hashA.callSignature === hashB.callSignature,
-            defectOnlyOutputGate: !cleanDefect.hasDefect && nanDefect.hasDefect
+            defectOnlyOutputGate: !cleanDefect.hasDefect && nanDefect.hasDefect,
+            metaHarnessRuleGate:
+              verifyCandidateRulesOnTraces(DEFAULT_EVOLVED_HARNESS_RULES).acceptedRules.length
+              === DEFAULT_EVOLVED_HARNESS_RULES.length,
+            authDriftAndDartGate:
+              dartRepairProbe.action === 'ALLOW' &&
+              dartRepairProbe.repairedArgs.dryRun === false &&
+              dartRepairProbe.repairedArgs.limit === 25 &&
+              dartHoldProbe.action === 'HOLD' &&
+              driftHoldProbe.decision === 'HOLD' &&
+              driftAllowProbe.decision === 'ALLOW'
           };
 
           const allOk = Object.values(checks).every(Boolean);
@@ -298,6 +331,75 @@ export const cli = defineCli({
             io.stdout(
               `  [${p.tier.padEnd(18)}] ${p.model.padEnd(20)} | tools: ${p.unGroundedForagingToolCalls} -> ${p.groundedHarnessToolCalls} | planStep=${p.injectPlanBindStep} | outer2pcNudges=${p.outer2pcNudgesTriggered} | schemaSaved=-${p.schemaReductionPct}%`
             );
+          }
+        }
+        return res;
+      }
+    },
+
+    'evolve-rules': {
+      summary: 'Mine failure trajectories and synthesize holdout-verified Meta-Harness rules',
+      options: {
+        results: { type: 'string', short: 'r', default: '' },
+        'traj-dir': { type: 'string', short: 't', default: '' },
+        teacher: { type: 'boolean', default: false },
+        provider: { type: 'string', default: 'ollama' },
+        model: { type: 'string', short: 'm', default: 'qwen3-coder-30b-moe:latest' },
+        'api-url': { type: 'string', default: '' },
+        out: { type: 'string', short: 'o', default: '' }
+      },
+      run: async ({ values, io }) => {
+        const resultsPaths = String(values.results || '')
+          .split(',')
+          .map((p) => p.trim())
+          .filter(Boolean)
+          .map((p) => path.resolve(p));
+        const trajDirs = String(values['traj-dir'] || '')
+          .split(',')
+          .map((p) => p.trim())
+          .filter(Boolean)
+          .map((p) => path.resolve(p));
+
+        const res = await evolveRulesFromTraces({
+          resultsPaths,
+          trajDirs,
+          useTeacher: Boolean(values.teacher),
+          provider: values.provider || 'ollama',
+          model: values.model || 'qwen3-coder-30b-moe:latest',
+          apiUrl: values['api-url'] || undefined,
+          outputPath: values.out || ''
+        });
+
+        if (!res.ok) {
+          io.stderr(res.error?.message || 'Failed to mine trajectories');
+          return res;
+        }
+
+        if (!values.json) {
+          io.stdout(res.summary);
+          const tax = res.data.mining.failureTaxonomy || {};
+          io.stdout('  Failure Taxonomy:');
+          for (const [mode, info] of Object.entries(tax)) {
+            io.stdout(
+              `    - ${mode.padEnd(34)} count=${String(info.count).padStart(3)} maxPatch=${String(info.maxPatchLines).padStart(5)} ex=[${info.exampleTasks.slice(0, 3).join(', ')}]`
+            );
+          }
+          if (res.data.teacher.invoked) {
+            io.stdout(
+              `  Teacher Synthesis (${res.data.teacher.model}): ok=${res.data.teacher.ok} proposed=${res.data.teacher.proposedCount}${res.data.teacher.error ? ` err=${res.data.teacher.error}` : ''}`
+            );
+          }
+          io.stdout(`  Accepted Rules (${res.data.acceptedRules.length}):`);
+          for (const r of res.data.acceptedRules) {
+            io.stdout(
+              `    + [${r.id}] ${r.action.padEnd(28)} tp=${r.truePositiveHits} fp=${r.falsePositiveHits} (${r.targetFailureMode})`
+            );
+          }
+          if (res.data.rejectedRules.length > 0) {
+            io.stdout(`  Quarantined / Rejected Rules (${res.data.rejectedRules.length}):`);
+            for (const r of res.data.rejectedRules) {
+              io.stdout(`    - [${r.id}] ${r.status}: ${r.reason}`);
+            }
           }
         }
         return res;

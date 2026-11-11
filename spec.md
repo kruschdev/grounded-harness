@@ -37,6 +37,10 @@ Across multi-model evaluations (`DolphinBench` 600-task 19-run / 11,400-trace ma
 - **`INV-GH-08` (Legacy 2PC Nudge Deprecation)**: `action-harness-engine.js` and `DABstep` runners phase out forced `IMPERATIVE_GOAL_ZERO_MUTATION`, default `max_read_streak` cutoffs, and `TWO_PHASE_UNOBSERVED_COMMIT` stop-nudges.
 - **`INV-GH-09` (Gemini Tool-Less `functionCallingConfig: { mode: 'NONE' }` Guard)**: `buildGeminiPayload` (`@krusch/toolkit/llm`) and `buildSafeGeminiToolConfig` MUST automatically set `toolConfig: { functionCallingConfig: { mode: 'NONE' } }` whenever `tools` is omitted or empty `[]` (unless caller passes an explicit `toolConfig` or `disableAutoToolConfigNone === true`).
 - **`INV-GH-10` (Partial `stdout` Preservation on Sandbox/Subprocess Timeouts)**: `execCommandWithPartialStdout` (`krusch-grounded-harness`), `runAsyncWithPartialStdout` & `formatTimeoutWithPartialStdout` (`@krusch/toolkit/grounded-harness`), and `recordToolOutcome` (`timedOut: true`) MUST preserve partial `stdout` emitted prior to timeout while clearing `finalAnswer: null` and `hasFinalAnswer: false`.
+- **`INV-GH-11` (Meta-Harness Failure-Trace Rule Synthesis & Holdout Replay Gate)**: `evolveRulesFromTraces` and `verifyCandidateRulesOnTraces` (`src/trace-rule-synthesizer.js`) MUST mine failure trajectories (`PSEUDO_COMPLETION_ECHO_LOOP`, `IDEMPOTENT_ROLLBACK_BLOCKED`, `TEMP_CLEANUP_FALSE_DIFF`, `INLINE_VERIFICATION_UNRECOGNIZED`), quarantine unsafe or ReDoS regexes, reject any candidate rule conflicting with `createFrozenPolicyFloor` or producing `falsePositiveHits > 0` on clean passing commands/tracked source paths, and enforce verified rules (`GH-EVO-01..05`) inside `createGroundedSessionEngine`.
+- **`INV-GH-12` (Early Scope & Authorization Drift + DART MCP-vs-CLI Realization Guard)**: `inspectAndRepairDartBoundaries` and `evaluateAuthorizationDrift` (`src/auth-drift-guard.js`) MUST run inside `interceptToolCall` (`0` LLM calls):
+  1. **DART Zero-Turn Lossless Repair & Boundary Hold (`arXiv:2610.34298`)**: Unambiguous stringified booleans (`"false"` -> `false`), stringified non-negative pagination integers (`"25"` -> `25`), optional `"null"`/`"undefined"` cursors, and outer markdown fences on shell commands MUST be repaired in `0` extra turns (`repairedArgs`) without mutating markdown/code file `content` or literal `"NA"` values (`INV-GH-01`), whereas CLI flags stuffed into structured MCP identifiers/paths, broken identifier sentinels, invalid pagination bounds, and raw MCP XML/JSON envelopes in POSIX shells MUST return `HOLD` (`DART_BOUNDARY_HOLD`).
+  2. **Authorization Drift & SERS Data Minimization (`arXiv:2611.09113`)**: Unscoped bulk data sweeps (`SELECT *` without constraining `WHERE` or bounded `LIMIT <= maxBulkLimit` on sensitive tables, standalone `printenv`/`env` dumps, runaway `limit > maxBulkLimit`, wildcard entity selectors, and early empty-pattern/root sweeps on Turn-0 grounded sessions) and unattested sensitive scope access (`inferGoalAttestedScopes`) MUST return `HOLD` (`AUTHORIZATION_DRIFT_HOLD`) with a Staged Execution-Reflective Synthesis (`SERS`) data-minimization prompt, while hard credential-store escapes, unattested outbound transmissions after sensitive taint (`TAINTED_OUTBOUND_EXFILTRATION`), and repeated cumulative drift (`driftScore >= blockScoreThreshold`) MUST escalate to `BLOCK` (`AUTHORIZATION_DRIFT_BLOCK`). Distinct targeted reads MUST remain unthrottled (`maxReadStreak === 0`).
 
 ---
 
@@ -94,6 +98,11 @@ CREATE TABLE IF NOT EXISTS grounded_sessions (
   turn0_duplicates_suppressed INTEGER NOT NULL DEFAULT 0,
   duplicate_writes_blocked INTEGER NOT NULL DEFAULT 0,
   policy_floor_blocks INTEGER NOT NULL DEFAULT 0,
+  allowed_scopes_json TEXT NOT NULL DEFAULT '[]',
+  drift_state_json TEXT NOT NULL DEFAULT '{}',
+  auth_drift_holds INTEGER NOT NULL DEFAULT 0,
+  dart_repairs_applied INTEGER NOT NULL DEFAULT 0,
+  dart_holds INTEGER NOT NULL DEFAULT 0,
   truncation_recoveries INTEGER NOT NULL DEFAULT 0,
   verify_nudges_used INTEGER NOT NULL DEFAULT 0,
   pending_diffs_count INTEGER NOT NULL DEFAULT 0,
@@ -119,3 +128,15 @@ CREATE TABLE IF NOT EXISTS grounded_events (
   updated_at_ms INTEGER NOT NULL
 );
 ```
+
+### 3.5 `src/trace-rule-synthesizer.js` (`INV-GH-11`)
+- `export function verifyCandidateRulesOnTraces(candidateRules = [], options = {})`
+- `export async function evolveRulesFromTraces(options = {})`
+  - Returns `okEnvelope('krusch_evolve_harness_rules', summary, { mining, teacher, acceptedRules, rejectedRules, outputPath })`.
+
+### 3.6 `src/auth-drift-guard.js` (`INV-GH-12`)
+- `export function inferGoalAttestedScopes(goal = '', explicitAllowedScopes = [])`
+- `export function inspectAndRepairDartBoundaries({ toolName = '', args = {}, toolSchema = null } = {})`
+- `export function evaluateAuthorizationDrift(options = {})`
+- `export function auditTrajectoryAuthorizationDrift(options = {})`
+  - Returns `okEnvelope('krusch_audit_auth_drift', summary, { attestedScopes, finalDriftState, counts, stepVerdicts })`.

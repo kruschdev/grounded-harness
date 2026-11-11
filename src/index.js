@@ -39,6 +39,25 @@ import {
   canonicalizeToolCallKey,
   createGroundedSessionEngine
 } from './grounded-session-engine.js';
+import {
+  SYNTHESIZED_RULE_ACTIONS,
+  DEFAULT_EVOLVED_HARNESS_RULES,
+  compileSafeRuleRegex,
+  compileExecutableRules,
+  extractShellCommandsFromTrajectory,
+  mineFailureTrajectories,
+  verifyCandidateRulesOnTraces,
+  synthesizeRulesWithTeacher,
+  evolveRulesFromTraces
+} from './trace-rule-synthesizer.js';
+import {
+  SENSITIVE_SCOPE_DOMAINS,
+  AUTH_DRIFT_REASON_CODES,
+  inferGoalAttestedScopes,
+  inspectAndRepairDartBoundaries,
+  evaluateAuthorizationDrift,
+  auditTrajectoryAuthorizationDrift
+} from './auth-drift-guard.js';
 
 export {
   SCALE_TIERS,
@@ -58,7 +77,22 @@ export {
   execCommandWithPartialStdout,
   classifyToolMutability,
   canonicalizeToolCallKey,
-  createGroundedSessionEngine
+  createGroundedSessionEngine,
+  SYNTHESIZED_RULE_ACTIONS,
+  DEFAULT_EVOLVED_HARNESS_RULES,
+  compileSafeRuleRegex,
+  compileExecutableRules,
+  extractShellCommandsFromTrajectory,
+  mineFailureTrajectories,
+  verifyCandidateRulesOnTraces,
+  synthesizeRulesWithTeacher,
+  evolveRulesFromTraces,
+  SENSITIVE_SCOPE_DOMAINS,
+  AUTH_DRIFT_REASON_CODES,
+  inferGoalAttestedScopes,
+  inspectAndRepairDartBoundaries,
+  evaluateAuthorizationDrift,
+  auditTrajectoryAuthorizationDrift
 };
 
 /**
@@ -75,7 +109,8 @@ export function createGroundedHarness({
   dbPath = ':memory:',
   db = null,
   protectedPaths = [],
-  extraFloorRules = []
+  extraFloorRules = [],
+  evolvedRules = DEFAULT_EVOLVED_HARNESS_RULES
 } = {}) {
   const ownsDb = !db;
   if (ownsDb && dbPath !== ':memory:') {
@@ -86,7 +121,8 @@ export function createGroundedHarness({
   const engine = createGroundedSessionEngine({
     db: activeDb,
     protectedPaths,
-    extraFloorRules
+    extraFloorRules,
+    evolvedRules
   });
 
   /**
@@ -117,7 +153,11 @@ export function createGroundedHarness({
       all_tools: params.tools || [],
       exposed_tools: gData.exposedTools || [],
       turn0_tokens: gData.tokenStats?.totalGroundingTokens ?? 0,
-      max_duplicate_writes: params.max_duplicate_writes ?? params.maxDuplicateWrites ?? 1
+      max_duplicate_writes: params.max_duplicate_writes ?? params.maxDuplicateWrites ?? 1,
+      allowed_scopes: params.allowed_scopes ?? params.allowedScopes,
+      max_bulk_limit: params.max_bulk_limit ?? params.maxBulkLimit,
+      enable_auth_drift_guard: params.enable_auth_drift_guard ?? params.enableAuthDriftGuard,
+      enable_dart_boundary_guard: params.enable_dart_boundary_guard ?? params.enableDartBoundaryGuard
     });
 
     if (!sessionEnv.ok) {

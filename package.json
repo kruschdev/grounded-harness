@@ -23,6 +23,8 @@
     "./delta-tool-gate": "./src/delta-tool-gate.js",
     "./grounding-compiler": "./src/grounding-compiler.js",
     "./session-engine": "./src/grounded-session-engine.js",
+    "./trace-synthesizer": "./src/trace-rule-synthesizer.js",
+    "./auth-drift-guard": "./src/auth-drift-guard.js",
     "./mcp": "./src/mcp.js",
     "./server": "./src/server.js"
   },
