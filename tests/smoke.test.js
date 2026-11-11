@@ -88,6 +88,56 @@ test('krusch-grounded-harness MCP server exposes 7 4-boolean-annotated tools and
     const parsed = JSON.parse(callRes.content[0].text);
     assert.equal(parsed.ok, true);
     assert.equal(parsed.data.profile.tier, 'MID_MODEL');
+
+    // Full 7/7 MCP tool dispatch lifecycle coverage
+    const groundRes = await mcp.callTool({
+      params: {
+        name: 'krusch_ground_workspace',
+        arguments: { goal: 'Inspect schema', model: 'gemini-4-argon' }
+      }
+    });
+    assert.equal(JSON.parse(groundRes.content[0].text).ok, true);
+
+    const startMcp = await mcp.callTool({
+      params: {
+        name: 'krusch_grounded_session_start',
+        arguments: { session_id: 'mcp_cov_1', goal: 'Verify 7 MCP tools', model: 'gemini-4-argon' }
+      }
+    });
+    assert.equal(JSON.parse(startMcp.content[0].text).ok, true);
+
+    const interceptMcp = await mcp.callTool({
+      params: {
+        name: 'krusch_grounded_intercept',
+        arguments: { session_id: 'mcp_cov_1', step: 1, tool_name: 'read_file', args: { path: 'README.md' } }
+      }
+    });
+    const interceptData = JSON.parse(interceptMcp.content[0].text);
+    assert.equal(interceptData.ok, true);
+
+    const outcomeMcp = await mcp.callTool({
+      params: {
+        name: 'krusch_grounded_outcome',
+        arguments: { session_id: 'mcp_cov_1', event_id: interceptData.data.eventId, ok: true, result_preview: '# README' }
+      }
+    });
+    assert.equal(JSON.parse(outcomeMcp.content[0].text).ok, true);
+
+    const stopMcp = await mcp.callTool({
+      params: {
+        name: 'krusch_grounded_verify_stop',
+        arguments: { session_id: 'mcp_cov_1', assistant_text: 'Verified cleanly.' }
+      }
+    });
+    assert.equal(JSON.parse(stopMcp.content[0].text).ok, true);
+
+    const summaryMcp = await mcp.callTool({
+      params: {
+        name: 'krusch_grounded_summary',
+        arguments: { session_id: 'mcp_cov_1' }
+      }
+    });
+    assert.equal(JSON.parse(summaryMcp.content[0].text).ok, true);
   } finally {
     mcp.close();
   }
