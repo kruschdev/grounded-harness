@@ -62,6 +62,12 @@
     "test": "node --test tests/*.test.js"
   },
   "dependencies": {
-    "@krusch/toolkit": "https://github.com/kruschdev/toolkit/archive/0c8c65032dd2218ed913f3bc0ab0f2f6e7c8ac57.tar.gz"
+    "@krusch/toolkit": "https://github.com/kruschdev/toolkit/archive/6b0765779edcb8a399c7a51951199973c3d27cc1.tar.gz"
+  },
+  "overrides": {
+    "fast-uri": "^4.2.3",
+    "hono": "^4.13.11",
+    "@hono/node-server": "^2.1.3",
+    "uuid": "^11.1.1"
   }
 }
