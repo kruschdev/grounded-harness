@@ -36,6 +36,9 @@
     "docker-compose.yml",
     ".env.example",
     "AGENTS.md",
+    "CONTRIBUTING.md",
+    "INSTALL.md",
+    "server.json",
     "spec.md",
     "README.md",
     "LICENSE"
