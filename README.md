@@ -70,6 +70,14 @@ Distilled from `16,800` Official `DolphinBench` traces (`28` official `600`-task
 
 ## 🚀 Setup & CLI Commands
 
+### Agent-Assisted Setup
+
+Ask your coding agent (Claude Code, Codex, Cursor, Windsurf, or Antigravity):
+
+```text
+Read https://raw.githubusercontent.com/kruschdev/grounded-harness/main/INSTALL.md and set up grounded-harness on this machine.
+```
+
 ```bash
 # Install dependencies and run full invariant + smoke test suites
 npm install
