@@ -1,6 +1,83 @@
 # Krusch Grounded Harness (`krusch-grounded-harness` v0.2.0)
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg?style=flat-square)](LICENSE)
+[![Node.js >= 22](https://img.shields.io/badge/node-%3E%3D22.0.0-brightgreen.svg?style=flat-square)](https://nodejs.org)
+[![Zero Docker](https://img.shields.io/badge/storage-node%3Asqlite%20WAL-blue.svg?style=flat-square)](#%EF%B8%8F-tech-stack--package-exports)
+[![MCP Tools: 7 Annotated](https://img.shields.io/badge/MCP-7%20Annotated%20Tools-blueviolet.svg?style=flat-square)](#%F0%9F%94%8C-stdio-mcp-server-7-tools-inv-stack-03-annotated)
+[![DolphinBench Open-Weights 57.33% ($0.00)](https://img.shields.io/badge/DolphinBench%20Open--Weights-57.33%25%20(%240.00)-brightgreen.svg?style=flat-square)](#%F0%9F%93%8A-empirical-benchmark-results-4200-grounded--16800-total-official-dolphinbench-traces--120-adyen-dabstep-episodes)
+
+**Standalone Turn-0 workspace grounder, duplicate-call spin-loop blocker, and zero-turn defect-only output gate for AI coding and data agents. Runs 100% locally on Node 22 `node:sqlite` (`7` MCP tools + HTTP `:3782` gateway + ESM library) with zero cloud calls.**
+
 Turn-0 Grounded, Scale-Aware, Low-Tool-Call Agent Harness (`HTTP :3782` Control Gateway + `7`-tool `stdio` MCP Server + Node 22 ESM library) built on `@krusch/toolkit` (`v1.8.1`).
+
+---
+
+## ⚡ 30-Second Standalone Quickstart (Zero Cloud, Zero Docker)
+
+### 1. Clone, Test & Ground Any Workspace Locally
+
+Requires only **Node.js `>= 22.0.0`** (uses built-in `node:sqlite` in WAL mode with zero Docker containers, zero native C++ compilation, and zero API keys):
+
+```bash
+git clone https://github.com/kruschdev/grounded-harness.git
+cd grounded-harness
+npm ci
+npm test
+
+# Verify SQLite WAL engine, 7 annotated MCP tools, and v0.2.0 invariants
+node bin/krusch-grounded-harness.js doctor
+
+# Compile Turn-0 workspace schemas, dataset hazard flags & Raw-RAG chunks (0 LLM calls)
+node bin/krusch-grounded-harness.js ground --dir . --goal "Inspect workspace schemas and hazards"
+```
+
+### 2. Connect to Your Agent (`.mcp.json` / Cursor) or Run via `krusch-stack`
+
+Paste into your project `.mcp.json`, Cursor (`~/.cursor/mcp.json`), Windsurf (`~/.codeium/windsurf/mcp_config.json`), or Antigravity (`~/.gemini/antigravity/mcp_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "krusch-grounded-harness": {
+      "command": "node",
+      "args": ["/absolute/path/to/grounded-harness/bin/krusch-grounded-harness.js", "mcp"]
+    }
+  }
+}
+```
+
+Prefer a zero-clone `npx` command or single-package ESM import? Run the bundled engine directly through [`krusch-stack`](https://github.com/kruschdev/krusch-stack):
+
+```bash
+# Start the 7-tool stdio MCP server without cloning a separate repo
+npx -y krusch-stack mcp --server krusch-grounded-harness
+```
+
+```js
+// Embed via krusch-stack (zero external runtime dependencies) or standalone package
+import { createGroundedHarnessEngine } from 'krusch-stack/grounded-harness';
+// Standalone repo import: import { createGroundedHarness } from 'krusch-grounded-harness';
+```
+
+---
+
+## 🩹 Before vs. After (What It Fixes)
+
+| Common Agent Failure Mode | Without `krusch-grounded-harness` | With `krusch-grounded-harness` (`$0.00`, `0` Cloud Calls) |
+|---|---|---|
+| **Blind file foraging & CSV `"NA"` = North America `NaN` corruption** | Wastes `60%–75%` of turns running `ls`/`head`/`cat` and silently drops `"NA"` country codes as `NaN` or misreads JSON `null` vs. `[]` wildcards. | `compileTurnZeroGrounding` introspects RFC-4180 CSV/TSV, JSON/JSONL, read-only SQLite DDL, code symbols, and `256/32`-tok `Raw-RAG` docs before Step 1, flagging `keep_default_na=False` and `null`/`[]` hazards automatically. |
+| **Identical failing or redundant tool-call spin loops** | Re-runs the same broken query or file read with tweaked comments/whitespace, burning context and API budget. | `normalizeCodeSnippetForHash` strips comments outside strings (preserving Python `//` floor division) to serve `MEMOIZED_PRIOR_READ` on repeats and `BLOCK_SPIN_LOOP` (`0` wasted re-executions) on repeat failures while keeping `maxReadStreak = 0` for distinct reads. |
+| **Raw `np.float64(...)` / `<tool_call>` leaks or self-doubt nudges** | Leaks raw `np.float64(...)`, pandas `dtype:`, `<tool_call>` XML, or `NaN` into final answers, or loses accuracy from unconditional "are you sure?" stop-nudges. | `inspectOutputDefects` approves clean answers in **`0` extra turns** and triggers a single targeted repair (`maxDefectRetries = 1`) strictly on objective output defects. |
+
+---
+
+## 🧩 Ecosystem Fit (Use Standalone or Combined)
+
+`krusch-grounded-harness` has zero runtime service dependencies and works standalone out of the box, or pairs cleanly with sibling tools when you want deeper state guarantees:
+
+- **[`krusch-context-mcp`](https://github.com/kruschdev/krusch-context-mcp) (Persistent Working Memory)**: Pair Turn-0 workspace grounding with cross-session episodic memory, decision lineage, and pre-commit invariant nudges (`5` MCP tools on `node:sqlite`).
+- **[`krusch-coding-harness`](https://github.com/kruschdev/krusch-coding-harness) (2PC Staged File Diffs)**: Add content-addressed diff staging, Bubblewrap sandbox verification, and `SIGKILL`-recoverable write-ahead disk apply for unattended background daemons.
+- **[`krusch-stack`](https://github.com/kruschdev/krusch-stack) (Unified One-Command Bundle)**: Run Turn-0 grounding alongside memory, Git/AST symbol graphs, and staged execution via `npx -y krusch-stack init` (supports `--server krusch-grounded-harness`, `--components grounded-harness`, and `--profile coding-agent`).
 
 ---
 
