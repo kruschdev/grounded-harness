@@ -1,17 +1,18 @@
 {
-  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-10-17/server.schema.json",
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "dev.krusch/grounded-harness",
+  "title": "Krusch Grounded Harness",
   "description": "Turn-0 workspace grounding, spin-loop blocker, and defect-only stop gate for AI coding agents.",
   "repository": {
     "url": "https://github.com/kruschdev/grounded-harness",
     "source": "github"
   },
-  "version": "0.2.0",
+  "version": "0.2.1",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "krusch-grounded-harness",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "runtimeHint": "npx",
       "transport": {
         "type": "stdio"
@@ -20,14 +21,6 @@
         {
           "type": "positional",
           "value": "mcp"
-        }
-      ],
-      "environmentVariables": [
-        {
-          "name": "KRUSCH_WORKSPACE_ROOT",
-          "description": "Target project workspace root directory",
-          "isRequired": false,
-          "isSecret": false
         }
       ]
     }

@@ -1,6 +1,6 @@
 {
   "name": "krusch-grounded-harness",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "type": "module",
   "main": "src/index.js",
   "description": "Turn-0 Grounded, Scale-Aware, Low-Tool-Call Agent Harness (HTTP :3782 + 7-tool Stdio MCP) built on @krusch/toolkit",
@@ -74,5 +74,6 @@
     "hono": "^4.13.11",
     "@hono/node-server": "^2.1.3",
     "uuid": "^11.1.1"
-  }
+  },
+  "mcpName": "dev.krusch/grounded-harness"
 }
